@@ -155,9 +155,19 @@ def fy_of_date(d: date) -> int:
 
 
 def dedupe(df: pd.DataFrame, id_col: str) -> pd.DataFrame:
-    """Drop repeated IDs (overlapping exports); rows without an ID dedupe on all columns."""
+    """Drop rows repeated by overlapping exports.
+
+    Identical rows collapse to one. The same ID with different values (IB re-issued a corrected
+    row) is an error: picking either silently could give a wrong figure.
+    """
+    df = df.drop_duplicates()
     has = df[id_col] != ""
-    return pd.concat([df[has].drop_duplicates(id_col), df[~has].drop_duplicates()])
+    clash = df[has & df[id_col].duplicated(keep=False)]
+    if not clash.empty:
+        ids = ", ".join(sorted(clash[id_col].unique())[:10])
+        raise ValueError(f"overlapping Flex exports disagree for {id_col} {ids}; keep only the "
+                         "latest export covering those dates in flex/")
+    return df
 
 
 # ------------------------------------------------------------------ normalised sections

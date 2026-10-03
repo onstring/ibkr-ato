@@ -22,6 +22,8 @@ KNOWN_GAPS = [
     "Franking credits on Australian shares are not read from IB; use the company statements.",
     "Options, futures and bonds are not handled (listed under issues if present).",
     "Commissions on currency conversions are not included in any figure.",
+    "With return_of_capital = 'cost_base', the reduction is spread over shares held on the "
+    "payment date (IB gives no record date); check it if you traded between the two dates.",
 ]
 
 

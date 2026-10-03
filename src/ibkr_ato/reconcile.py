@@ -190,6 +190,8 @@ def reconcile_nav(income: pd.DataFrame, trades: pd.DataFrame, fx_trades: pd.Data
     def comm(df: pd.DataFrame) -> float:
         if df.empty:
             return 0.0
+        if "comm_fc" in df:  # stock trades: commission already in the trade currency
+            return _base(df["comm_fc"], df["fx_ib"])
         rate = df["fx_ib"].where(df["commcur"] != "AUD", 1.0)
         return _base(df["comm"], rate)
 

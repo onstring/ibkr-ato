@@ -54,6 +54,7 @@ class RateTable:
 
     def rates_for(self, currency: pd.Series, dates: pd.Series, max_gap_days: int) -> pd.Series:
         """Rate per row; raises FxRateMissing listing every row without a rate."""
+        currency = currency.fillna("")  # a NaN currency must fail below, not be skipped
         out = pd.Series(np.nan, index=currency.index, dtype=float)
         misses: list[tuple[str, date]] = []
         for cur in currency.dropna().unique():

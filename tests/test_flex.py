@@ -52,3 +52,14 @@ def test_fy_of():
     import pandas as pd
     s = pd.to_datetime(pd.Series(["2025-06-30", "2025-07-01"]))
     assert list(flex.fy_of(s)) == [2025, 2026]
+
+
+def test_conflicting_reexport_is_an_error(tmp_path):
+    a = flex.read_flex(write_flex(tmp_path / "a.csv",
+                                  trades=[trade("AAA", "1", date(2025, 8, 1), 10, 10.0, comm=-1,
+                                                tid="T1")]))
+    b = flex.read_flex(write_flex(tmp_path / "b.csv",
+                                  trades=[trade("AAA", "1", date(2025, 8, 1), 10, 10.0, comm=-5,
+                                                tid="T1")]))
+    with pytest.raises(ValueError, match="disagree"):
+        flex.executions([a, b])

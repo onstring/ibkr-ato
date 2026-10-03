@@ -94,7 +94,7 @@ def prepare_trades(exe: pd.DataFrame, rates: RateTable,
     fx_comm = rates.rates_for(commcur, df["date"], gap)
     comm_fc = np.where(commcur == df["cur"], df["comm"], df["comm"] / fx_comm * fx)
     out = df.assign(
-        key=key, commcur=commcur, proceeds=proceeds, fx=fx, fx_comm=fx_comm,
+        key=key, commcur=commcur, proceeds=proceeds, fx=fx, fx_comm=fx_comm, comm_fc=comm_fc,
         net_aud=(proceeds + df["taxes"]) / fx + df["comm"] / fx_comm,
         net_fc=proceeds + df["taxes"] + comm_fc,
     )
