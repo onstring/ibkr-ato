@@ -9,6 +9,7 @@ A missing rate is an error: a figure without its rate cannot be right.
 from __future__ import annotations
 
 import csv
+import ssl
 import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -129,8 +130,23 @@ def load_rba_dir(rba_dir: Path) -> RateTable:
     return load_rba(paths)
 
 
+def _os_trust_context() -> ssl.SSLContext:
+    """TLS context backed by the operating system's certificate store.
+
+    Python ships its own CA bundle; using the OS store means a certificate your machine trusts
+    (for example a corporate proxy's) also works here. Verification stays on.
+    """
+    import truststore
+
+    return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
+
+def _urlopen(req: urllib.request.Request, timeout: float):
+    return urllib.request.urlopen(req, timeout=timeout, context=_os_trust_context())
+
+
 def fetch_rba(dest: Path, *, force: bool = False,
-              urlopen: Callable = urllib.request.urlopen) -> tuple[Path, ...]:
+              urlopen: Callable = _urlopen) -> tuple[Path, ...]:
     """Download the RBA F11 current CSV and 2018-2022 history into dest."""
     dest = Path(dest)
     dest.mkdir(parents=True, exist_ok=True)

@@ -31,9 +31,18 @@ class ReportStatus:
     reasons: tuple[str, ...]
 
 
+def pending_for(result: PipelineResult, fy: int) -> pd.DataFrame:
+    """Undecided corporate actions dated in or before this FY (they can change it)."""
+    p = result.corp_actions.pending
+    if p.empty:
+        return p
+    keep = [not d or _fy(d) <= fy for d in p["date"]]
+    return p[keep]
+
+
 def report_status(result: PipelineResult, fy: int) -> ReportStatus:
     reasons = []
-    pending = result.corp_actions.pending
+    pending = pending_for(result, fy)
     if not pending.empty:
         reasons.append(f"{len(pending)} corporate action(s) need a decision "
                        "(status needs_manual in corporate_actions.csv)")
@@ -148,7 +157,7 @@ def build_context(result: PipelineResult, fy: int) -> dict:
         "recon": sorted(recon, key=lambda r: (r.section, order[r.status])),
         "recon_counts": pd.Series([r.status for r in recon]).value_counts().to_dict(),
         "unresolved": [u._asdict() for u in result.ledger.unresolved if _fy(u.date) == fy],
-        "pending": _records(result.corp_actions.pending),
+        "pending": _records(pending_for(result, fy)),
         "issues": [i._asdict() for i in result.issues],
         "events": [e.__dict__ | {"kind": type(e).__name__} for e in events],
         "assumptions": _assumptions(result, fy), "known_gaps": KNOWN_GAPS,

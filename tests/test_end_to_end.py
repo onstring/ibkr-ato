@@ -119,3 +119,17 @@ def test_corporate_action_flow_draft_then_confirm(data_dir):
     assert r.ledger.parcels.iloc[-1]["disp_source"].startswith("ib:9:")
     assert v["cgt_gains_other"] == pytest.approx(25)  # (500 - 400) HKD x 0.25
     assert report_status(r, 2026).final, r.reconciliations[2026].frame()
+
+
+def test_pending_action_only_blocks_its_own_and_later_years(data_dir):
+    import pandas as pd
+
+    from ibkr_ato.corporate_actions import CSV_COLS
+
+    make_data(data_dir)
+    row = {**dict.fromkeys(CSV_COLS, ""), "action_id": "x", "status": "needs_manual",
+           "date": "2026-03-01", "conid": "2"}
+    pd.DataFrame([row], columns=CSV_COLS).to_csv(data_dir.corporate_actions, index=False)
+    r = run_pipeline(data_dir, Settings())
+    assert report_status(r, 2025).final
+    assert not report_status(r, 2026).final

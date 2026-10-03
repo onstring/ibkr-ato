@@ -1,0 +1,26 @@
+# Copy to $IBKR_ATO_DATA/ibkr-ato.toml and edit. Every setting appears in the report's
+# Assumptions section. Command-line flags override these values.
+
+[defaults]
+# Net capital losses carried into the first FY of your IB history (AUD).
+prior_losses = 0.0
+
+# Share of margin interest used to buy foreign shares (0 to 1).
+# That share is reported at D15, the rest at D8.
+margin_foreign_share = 1.0
+
+# IB credit interest: "foreign" (item 20) or "au" (item 10).
+interest_source = "foreign"
+
+# How many days back to look for an RBA rate when a date has none (weekends, holidays).
+fx_max_gap_days = 7
+
+# Use the lodged 18V of the previous FY as this FY's carried-forward losses.
+carry_in_from_lodged = true
+
+# Net fees on foreign shares (e.g. ADR fees) into 20M. Deductibility is not confirmed.
+deduct_foreign_fees = false
+
+# IB "Return of Capital" dividends: "dividend" (counted in 20E) or "cost_base"
+# (reduce the cost base of the shares held, CGT event G1). See docs/rules.md.
+return_of_capital = "dividend"
