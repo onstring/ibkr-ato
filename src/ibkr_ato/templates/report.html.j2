@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FY{{ fy }} tax figures</title>
+<style>
+:root { --bg:#fff; --fg:#1b1f24; --muted:#5b6470; --line:#d9dee4; --head:#f3f5f7;
+        --ok:#1f7a3a; --bad:#b42318; --info:#5b6470; --warn-bg:#fff4e5; --ok-bg:#eaf6ee; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111418; --fg:#e6e9ed; --muted:#9aa4af; --line:#2c333b; --head:#1a1f25;
+          --ok:#5cc27a; --bad:#ff7b72; --info:#9aa4af; --warn-bg:#3a2a12; --ok-bg:#12301c; } }
+body { background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif;
+       margin:0 auto; max-width:1180px; padding:16px; }
+h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:17px; margin:28px 0 8px;
+  border-bottom:1px solid var(--line); padding-bottom:4px; } h3 { font-size:14px; margin:16px 0 6px; }
+.muted { color:var(--muted); } .zh { color:var(--muted); font-size:12px; }
+.banner { padding:10px 12px; border-radius:6px; margin:12px 0; }
+.banner.final { background:var(--ok-bg); } .banner.draft { background:var(--warn-bg); }
+.scroll { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; margin:4px 0 8px; }
+th, td { border-bottom:1px solid var(--line); padding:4px 6px; text-align:left; vertical-align:top; }
+th { background:var(--head); font-weight:600; white-space:nowrap; }
+td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+tr.total td { font-weight:600; border-top:2px solid var(--line); }
+tr.key td { font-weight:600; }
+.mismatch, .review { color:var(--bad); font-weight:600; } .ok { color:var(--ok); }
+.info, .na { color:var(--info); }
+nav a { margin-right:12px; color:inherit; }
+ul { margin:4px 0; padding-left:20px; }
+</style>
+</head>
+<body>
+<h1>Tax figures FY{{ fy }}</h1>
+<div class="muted">{{ period }} · generated {{ generated }} · ibkr-ato {{ version }}</div>
+
+<div class="banner {{ 'final' if status.final else 'draft' }}">
+{% if status.final %}<strong>FINAL</strong>: no open items, and the figures reconcile with IB.
+{% else %}<strong>DRAFT</strong>: resolve these before you lodge:
+<ul>{% for r in status.reasons %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+</div>
+
+<nav><a href="#summary">Summary</a><a href="#cgt">Capital gains</a><a href="#holdings">Holdings</a>
+<a href="#income">Foreign income</a><a href="#deductions">Deductions</a><a href="#recon">Reconciliation</a>
+<a href="#open">Open items</a><a href="#assumptions">Assumptions</a></nav>
+
+<h2 id="summary">Summary for the tax return <span class="zh">报税汇总</span></h2>
+<div class="scroll"><table>
+<tr><th>Label</th><th>Description</th><th class="n">Value (AUD)</th>
+{% if has_lodged %}<th class="n">Lodged</th><th class="n">Delta</th><th>Check</th>{% endif %}</tr>
+{% for r in summary_rows %}
+<tr class="{{ 'key' if r.tag in ('18H','18A','18V','20E','20M','20O') }}">
+<td>{{ r.tag }}</td><td>{{ r.en }}<br><span class="zh">{{ r.zh }}</span></td>
+<td class="n">{{ r.value | money }}</td>
+{% if has_lodged %}<td class="n">{{ r.lodged | money }}</td><td class="n">{{ r.delta | money }}</td>
+<td class="{{ 'review' if r.flag == 'review/amend' else 'ok' }}">{{ r.flag }}</td>{% endif %}
+</tr>{% endfor %}
+</table></div>
+
+<h2 id="cgt">Capital gains by security <span class="zh">按证券的资本利得</span></h2>
+{% if not cgt_groups %}<p class="muted">No disposals this year.</p>{% endif %}
+{% for g in cgt_groups %}
+<h3>{{ g.symbol }}</h3>
+<div class="scroll"><table>
+<tr><th>Acquired</th><th>Disposed</th><th class="n">Qty</th><th class="n">Cost (FC)</th>
+<th class="n">Proceeds (FC)</th><th class="n">FX acq</th><th class="n">FX disp</th>
+<th class="n">Cost AUD</th><th class="n">Proceeds AUD</th><th class="n">Gain AUD</th>
+<th>Discount</th><th>Source</th></tr>
+{% for p in g.rows %}
+<tr><td>{{ p.acq_date }}</td><td>{{ p.disp_date }}</td><td class="n">{{ p.quantity | qty }}</td>
+<td class="n">{{ p.cost_fc | money }} {{ p.currency }}</td><td class="n">{{ p.proceeds_fc | money }}</td>
+<td class="n">{{ '%.4f' % p.fx_acq }}</td><td class="n">{{ '%.4f' % p.fx_disp }}</td>
+<td class="n">{{ p.cost_aud | money }}</td><td class="n">{{ p.proceeds_aud | money }}</td>
+<td class="n">{{ p.gain_aud | money }}</td><td>{{ 'yes' if p.discount_eligible else 'no' }}</td>
+<td class="muted">{{ p.acq_source }} → {{ p.disp_source }}</td></tr>{% endfor %}
+<tr class="total"><td colspan="2">Subtotal</td><td class="n">{{ g.total.quantity | qty }}</td>
+<td colspan="4"></td><td class="n">{{ g.total.cost_aud | money }}</td>
+<td class="n">{{ g.total.proceeds_aud | money }}</td><td class="n">{{ g.total.gain_aud | money }}</td>
+<td colspan="2"></td></tr>
+</table></div>{% endfor %}
+
+<h3>From gains to net capital gain <span class="zh">净资本利得计算</span></h3>
+<table style="max-width:560px">
+<tr><td>Gains not eligible for discount</td><td class="n">{{ cgt.other | money }}</td></tr>
+<tr><td>Gains eligible for discount (before discount)</td><td class="n">{{ cgt.disc | money }}</td></tr>
+<tr><td>Current year capital losses</td><td class="n">{{ cgt.losses | money }}</td></tr>
+<tr><td>Net capital losses brought forward ({{ cgt.carry_source }})</td><td class="n">{{ cgt.carry_in | money }}</td></tr>
+<tr><td>Losses applied to non-discount gains</td><td class="n">−{{ cgt.use_o | money }}</td></tr>
+<tr><td>Losses applied to discount gains</td><td class="n">−{{ cgt.use_d | money }}</td></tr>
+<tr><td>50% CGT discount</td><td class="n">−{{ cgt.discount | money }}</td></tr>
+<tr class="total"><td>Net capital gain (18A)</td><td class="n">{{ cgt.net | money }}</td></tr>
+<tr><td>Net capital losses carried forward (18V)</td><td class="n">{{ cgt.carry_out | money }}</td></tr>
+</table>
+
+<h2 id="holdings">Holdings at 30 June {{ fy }} <span class="zh">年末持仓</span></h2>
+<div class="scroll"><table>
+<tr><th>Symbol</th><th>Acquired</th><th class="n">Qty</th><th class="n">Cost (FC)</th><th class="n">Cost AUD</th><th>Source</th></tr>
+{% for h in holdings %}<tr><td>{{ h.symbol }}</td><td>{{ h.acq_date }}</td><td class="n">{{ h.quantity | qty }}</td>
+<td class="n">{{ h.cost_fc | money }} {{ h.currency }}</td><td class="n">{{ h.cost_aud | money }}</td><td class="muted">{{ h.source }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">None.</td></tr>{% endfor %}
+</table></div>
+
+<h2 id="income">Foreign income <span class="zh">境外收入</span></h2>
+<h3>By security (AUD)</h3>
+<div class="scroll"><table>
+<tr><th>Symbol</th><th>Country (ISIN)</th><th class="n">Dividends</th><th class="n">Return of capital</th>
+<th class="n">Payment in lieu</th><th class="n">Withholding tax</th></tr>
+{% for r in income_by_symbol %}<tr><td>{{ r.symbol }}</td><td>{{ r.country }}</td><td class="n">{{ r.div | money }}</td>
+<td class="n">{{ r.roc | money }}</td><td class="n">{{ r.pil | money }}</td><td class="n">{{ r.wht | money }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">None.</td></tr>{% endfor %}
+</table></div>
+<h3>Detail</h3>
+<div class="scroll"><table>
+<tr><th>Date</th><th>Type</th><th>Symbol</th><th class="n">Amount</th><th class="n">RBA rate</th><th class="n">AUD</th><th>Description</th></tr>
+{% for r in income_rows %}<tr><td>{{ r.date.date() }}</td><td>{{ r.cat }}</td><td>{{ r.symbol }}</td>
+<td class="n">{{ r.amount | money }} {{ r.cur }}</td><td class="n">{{ '%.4f' % r.fx }}</td><td class="n">{{ r.aud | money }}</td>
+<td class="muted">{{ r.description }}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">None.</td></tr>{% endfor %}
+</table></div>
+
+<h2 id="deductions">Deductions and fees <span class="zh">扣除与费用</span></h2>
+<table style="max-width:720px">
+<tr><td>Margin interest paid</td><td class="n">{{ values.margin_interest_paid | money }}</td></tr>
+<tr><td>D15 Other deductions: interest for foreign shares</td><td class="n">{{ values.D15_margin_interest_foreign | money }}</td></tr>
+<tr><td>D8 Dividend deductions: interest for Australian shares</td><td class="n">{{ values.D8_margin_interest_au | money }}</td></tr>
+<tr><td>Fees on foreign shares (item 20 if you elect to deduct them)</td><td class="n">{{ values.fees_foreign | money }}</td></tr>
+<tr><td>Fees on Australian shares</td><td class="n">{{ values.fees_au | money }}</td></tr>
+<tr><td>Other IB fees, not linked to a security</td><td class="n">{{ values.fees_unallocated | money }}</td></tr>
+</table>
+{% if fee_rows %}<div class="scroll"><table>
+<tr><th>Date</th><th>Symbol</th><th>Scope</th><th class="n">Amount</th><th class="n">AUD</th><th>Description</th></tr>
+{% for r in fee_rows %}<tr><td>{{ r.date.date() }}</td><td>{{ r.symbol }}</td><td>{{ r.fee_scope }}</td>
+<td class="n">{{ r.amount | money }} {{ r.cur }}</td><td class="n">{{ r.aud | money }}</td><td class="muted">{{ r.description }}</td></tr>{% endfor %}
+</table></div>{% endif %}
+
+<h2 id="recon">Reconciliation with IB <span class="zh">与 IB 数据核对</span></h2>
+<p class="muted">A: IB closed lots vs our parcels (trade currency). B: IB positions at 30 June vs our holdings.
+C: IB Change in NAV vs our totals (AUD). Counts: {% for k, n in recon_counts.items() %}{{ k }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}.</p>
+<div class="scroll"><table>
+<tr><th>Section</th><th>Check</th><th>Scope</th><th class="n">Ours</th><th class="n">IB</th><th class="n">Diff</th><th>Status</th><th>Note</th></tr>
+{% for r in recon %}<tr><td>{{ r.section }}</td><td>{{ r.check }}</td><td>{{ r.scope }}</td>
+<td class="n">{{ r.ours | money }}</td><td class="n">{{ r.ib | money }}</td><td class="n">{{ r.diff | money }}</td>
+<td class="{{ r.status | replace('/', '') }}">{{ r.status }}</td><td class="muted">{{ r.note }}</td></tr>{% endfor %}
+</table></div>
+
+<h2 id="open">Open items and known gaps <span class="zh">待处理事项</span></h2>
+{% if pending %}<h3>Corporate actions that need a decision</h3>
+<div class="scroll"><table><tr><th>Action</th><th>Type</th><th>Date</th><th>Symbol</th><th>Note</th><th>IB description</th></tr>
+{% for p in pending %}<tr><td>{{ p.action_id }}</td><td>{{ p.type }}</td><td>{{ p.date }}</td><td>{{ p.symbol }}</td>
+<td>{{ p.note }}</td><td class="muted">{{ p.ib_description }}</td></tr>{% endfor %}</table></div>{% endif %}
+{% if unresolved %}<h3>Unresolved ledger items</h3>
+<table><tr><th>Kind</th><th>Symbol</th><th>Date</th><th class="n">Qty</th><th>Message</th></tr>
+{% for u in unresolved %}<tr><td class="mismatch">{{ u.kind }}</td><td>{{ u.symbol }}</td><td>{{ u.date }}</td>
+<td class="n">{{ u.quantity | qty }}</td><td>{{ u.message }}</td></tr>{% endfor %}</table>{% endif %}
+{% if events %}<h3>Corporate actions applied this year</h3>
+<table><tr><th>Action</th><th>Kind</th><th>Date</th><th>Symbol</th></tr>
+{% for e in events %}<tr><td>{{ e.action_id }}</td><td>{{ e.kind }}</td><td>{{ e.date }}</td><td>{{ e.symbol }}</td></tr>{% endfor %}</table>{% endif %}
+{% if issues %}<h3>Notes from the data</h3><ul>{% for i in issues %}<li>{{ i.message }}</li>{% endfor %}</ul>{% endif %}
+<h3>Not computed</h3><ul>{% for g in known_gaps %}<li>{{ g }}</li>{% endfor %}</ul>
+
+<h2 id="assumptions">Assumptions and sources <span class="zh">假设与数据来源</span></h2>
+<ul>{% for a in assumptions %}<li>{{ a }}</li>{% endfor %}</ul>
+<h3>Input files</h3>
+<ul>{% for f in flex_files %}<li>{{ f.name }} ({{ f.from or '?' }} to {{ f.to or '?' }})</li>{% endfor %}
+<li>RBA: {{ rba_files | join(', ') }} (rates {{ rba_range[0] }} to {{ rba_range[1] }})</li></ul>
+</body>
+</html>
