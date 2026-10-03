@@ -1,0 +1,46 @@
+[project]
+name = "ibkr-ato"
+version = "0.1.0"
+description = "Turn Interactive Brokers Flex Query exports into Australian (ATO) individual tax-return figures"
+readme = "README.md"
+authors = [
+    { name = "Shi Yan", email = "yanshi.403@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "jinja2>=3.1",
+    "numpy>=2.5.3",
+    "pandas>=3.0.6",
+    "xlrd>=2.0.2",
+]
+
+[project.scripts]
+ibkr-ato = "ibkr_ato.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "golden: compares against the private baseline in $IBKR_ATO_DATA/golden (skipped when unset)",
+]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.coverage.run]
+source = ["ibkr_ato"]

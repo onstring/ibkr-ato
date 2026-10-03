@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv
+
+# Private tax data and generated outputs: never commit
+tax
+tax/
+data/
+out/
+2026/
+*.py2
+
+# Local agent settings (contain private paths)
+.claude/settings.local.json
