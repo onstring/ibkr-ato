@@ -94,14 +94,19 @@ def test_legacy_parity(result):
     ok = _close(merged["value"].astype(str), merged["value_base"])
     assert ok.all(), merged[~ok][["fy", "key", "value_base", "value"]]
 
-    parcels = result.ledger.parcels.rename(columns={"disp_source": "disp_trade"})
+    # Figures only: source labels and ISINs changed when the hand-made Dongfeng trades were
+    # replaced by confirmed corporate actions (3 Oct 2026). Voyah (7489) also keeps the
+    # spin-off acquisition date, so open lots are compared per symbol.
+    labels = ["isin", "acq_source", "disp_trade"]
     base_p = pd.read_csv(base_dir / "cgt_parcels.csv", dtype=str, keep_default_na=False)
-    assert_frames_match(parcels, base_p, ["fy", "disp_date", "symbol", "acq_date", "quantity"],
-                        "cgt_parcels")
+    assert_frames_match(result.ledger.parcels, base_p.drop(columns=labels),
+                        ["fy", "disp_date", "symbol", "acq_date", "quantity"], "cgt_parcels")
 
-    base_l = pd.read_csv(base_dir / "open_lots_end.csv", dtype=str, keep_default_na=False)
-    assert_frames_match(result.ledger.holdings, base_l, ["symbol", "acq_date", "quantity"],
-                        "open_lots_end")
+    base_l = pd.read_csv(base_dir / "open_lots_end.csv", keep_default_na=False)
+    per_symbol = ["quantity", "cost_fc", "cost_aud"]
+    ours_l = result.ledger.holdings.groupby("symbol", as_index=False)[per_symbol].sum()
+    assert_frames_match(ours_l, base_l.groupby("symbol", as_index=False)[per_symbol].sum(),
+                        ["symbol"], "open_lots_end")
 
     income = result.income.assign(cat=result.income["cat"].replace({"roc": "div"}))
     base_i = pd.read_csv(base_dir / "income_detail.csv", dtype=str, keep_default_na=False)

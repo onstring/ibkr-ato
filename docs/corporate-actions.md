@@ -87,18 +87,24 @@ The rows in your `corporate_actions.csv` are pre-filled for (b), with the amount
 from `manual_dongfeng.csv`, and left as `needs_manual`. The choice is yours (or your tax
 adviser's).
 
-### Applying treatment (b)
+### Chosen: treatment (b), as in the original manual file
 
-1. Check the amounts, then set `status` to `confirmed` on the three rows.
-2. Move `flex/manual_dongfeng.csv` out of `flex/` (for example to the data directory root).
-   Otherwise the hand-written trades and the events both dispose of the 489 shares.
-3. Run `ibkr-ato run --fy 2026`.
+Confirmed by the owner on 3 October 2026. `corporate_actions.csv` holds three confirmed rows:
 
-Result, checked against the original script: every FY2026 figure is unchanged. The one
-difference is that Voyah (7489) keeps the 11 March 2026 acquisition date from the spin-off
-(through the rollover) instead of 18 March. Reconciliation has no mismatches. The cost of 7489
-and of the 489.SPO fraction differs from IB's figure, because IB allocates spin-off cost its own
-way. These rows show as info.
+| Type | Date | Symbol | Meaning |
+|---|---|---|---|
+| `add_lots` | 11 Mar 2026 | 489.SPO | the fractional entitlement, at market value; IB sold it for cash in lieu |
+| `add_lots` | 18 Mar 2026 | 7489 | whole Voyah shares received as consideration, cost base = market value on 18 Mar |
+| `remove_for_cash` | 18 Mar 2026 | 489 | Dongfeng disposal; proceeds = cash + market value of the Voyah shares |
+
+IB's share-for-share row was changed from the drafted `rollover` to the second `add_lots`.
+Under (b) the Voyah shares are acquired on the takeover date at market value. A rollover would
+instead carry an earlier date and cost. `manual_dongfeng.csv` was retired from `flex/`.
+
+Result, checked against the original script: every figure for FY2022 to FY2026 is unchanged,
+including the Voyah cost base. Reconciliation has no mismatches. The cost of 7489 and of the
+489.SPO fraction differs from IB's figure, because IB allocates spin-off cost its own way. Those
+rows show as info.
 
 For (a), keep the `add_lots` and `rollover` rows, set the `remove_for_cash` amount to the cash
 proceeds only, and add the market value to your foreign income. That last step is outside the
