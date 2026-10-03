@@ -84,8 +84,10 @@ def test_parse_action(desc, kind, field, value):
 def test_draft_pairs_scrip_rows_and_keeps_existing(tmp_path):
     d = date(2026, 3, 18)
     scrip = "X.SPO(CNE10312SPO8) MERGED(Mandatory Offer Allocation) WITH CNE100007FB7 1 FOR 1"
-    rows = [corp_action("TC", scrip, -10, d, "X.SPO", "3", action_id="7"),
-            corp_action("TC", scrip, 10, d, "Y", "4", action_id="7"),
+    # Real IB rows share the ActionID; the trailing "(symbol, name, isin)" differs.
+    rows = [corp_action("TC", scrip + " (X.SPO, X SPINOFF, CNE10312SPO8)", -10, d, "X.SPO", "3",
+                        action_id="7"),
+            corp_action("TC", scrip + " (Y, Y CO, CNE100007FB7)", 10, d, "Y", "4", action_id="7"),
             corp_action("FS", "Z SPLIT 2 FOR 1", 5, d, "Z", "5", action_id="8")]
     f = flex.read_flex(write_flex(tmp_path / "a.csv", corp_actions=rows))
     ib = flex.corp_action_rows([f])

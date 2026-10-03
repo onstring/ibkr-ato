@@ -95,3 +95,27 @@ def test_cli_corp_actions_dry_run_writes_nothing(data_dir):
     make_data(data_dir)
     assert main(["--data", str(data_dir.root), "corp-actions", "--dry-run"]) == 0
     assert not data_dir.corporate_actions.exists()
+
+
+def test_corporate_action_flow_draft_then_confirm(data_dir):
+    """Cash takeover of BBB: drafted as needs_manual (DRAFT), FINAL once confirmed."""
+    from conftest import corp_action
+
+    from ibkr_ato.corporate_actions import read_csv
+
+    make_data(data_dir, position_qty=0)
+    desc = "BBB(HK0000000001) MERGED(Acquisition) FOR HKD 5 PER SHARE (BBB, B CO, HK0000000001)"
+    write_flex(data_dir.flex / "fy2026b.csv",
+               corp_actions=[corp_action("TC", desc, -100, date(2026, 3, 12), "BBB", "2",
+                                         proceeds=500.0, action_id="9")])
+    root = str(data_dir.root)
+    assert main(["--data", root, "corp-actions"]) == 0
+    r = run_pipeline(data_dir, Settings())
+    assert not report_status(r, 2026).final
+    ca = read_csv(data_dir.corporate_actions).assign(status="confirmed")
+    ca.to_csv(data_dir.corporate_actions, index=False)
+    r = run_pipeline(data_dir, Settings())
+    v = r.summaries[2026].values
+    assert r.ledger.parcels.iloc[-1]["disp_source"].startswith("ib:9:")
+    assert v["cgt_gains_other"] == pytest.approx(25)  # (500 - 400) HKD x 0.25
+    assert report_status(r, 2026).final, r.reconciliations[2026].frame()

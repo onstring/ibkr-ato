@@ -244,8 +244,12 @@ def draft_rows(ib_rows: pd.DataFrame) -> list[dict[str, object]]:
                                amount=_fmt(abs(ib["proceeds"])), currency=f["currency"],
                                note=NOTE_CASH))
         elif kind == "scrip":
-            mates = ib_rows[(ib_rows["description"] == ib["description"])
-                            & (ib_rows["date"] == ib["date"]) & (ib_rows.index != i)]
+            # IB writes one row per side with the same ActionID; descriptions differ only in
+            # the trailing "(symbol, name, isin)".
+            same = (ib_rows["action_id"] == ib["action_id"]) if ib["action_id"] else (
+                ib_rows["description"].str.rsplit(" (", n=1).str[0]
+                == ib["description"].rsplit(" (", 1)[0])
+            mates = ib_rows[same & (ib_rows["date"] == ib["date"]) & (ib_rows.index != i)]
             used.update(mates.index)
             pair = pd.concat([ib.to_frame().T, mates])
             src = pair[pair["qty"].astype(float) < 0]

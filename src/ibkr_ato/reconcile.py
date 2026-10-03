@@ -57,14 +57,16 @@ def _frames(ours: pd.DataFrame, ib: pd.DataFrame) -> tuple[pd.DataFrame, pd.Data
                       "cur": ours["currency"], "disp": pd.to_datetime(ours["disp_date"]),
                       "acq": pd.to_datetime(ours["acq_date"]), "qty": ours["quantity"],
                       "cost_fc": ours["cost_fc"],
-                      "gain_fc": ours["proceeds_fc"] - ours["cost_fc"]})
+                      "gain_fc": ours["proceeds_fc"] - ours["cost_fc"],
+                      "src": ours["acq_source"]})
     i = pd.DataFrame({"conid": ib["conid"], "symbol": ib["symbol"], "cur": ib["cur"],
                       "disp": ib["disp_date"], "acq": ib["acq_date"], "qty": ib["qty"],
                       "cost_fc": ib["cost_fc"], "gain_fc": ib["pnl_fc"]})
     return o, i
 
 
-def _disposal_rows(o: pd.DataFrame, i: pd.DataFrame, names: dict) -> list[ReconRow]:
+def _disposal_rows(o: pd.DataFrame, i: pd.DataFrame, names: dict,
+                   event_ids: set[str]) -> list[ReconRow]:
     rows = []
     keys = ["conid", "disp"]
     m = _sum(o, keys).merge(_sum(i, keys), on=keys, how="outer", suffixes=("", "_ib"))
@@ -79,20 +81,24 @@ def _disposal_rows(o: pd.DataFrame, i: pd.DataFrame, names: dict) -> list[ReconR
             continue
         rows.append(_cmp("A closed lots", "quantity", scope, r.qty, r.qty_ib, QTY_TOL,
                          "quantity differs"))
+        mine = o[(o.conid == r.conid) & (o.disp == r.disp)]
+        from_event = any(any(e in src for e in event_ids) for src in mine["src"])
+        note = ("lot cost set by a corporate action; IB allocates cost its own way"
+                if from_event else "")
         rows.append(_cmp("A closed lots", "cost (FC)", scope, r.cost_fc, r.cost_fc_ib,
-                         money_tol(r.cost_fc_ib), "cost base differs"))
+                         money_tol(r.cost_fc_ib), note or "cost base differs", soft=from_event))
         rows.append(_cmp("A closed lots", "gain (FC)", scope, r.gain_fc, r.gain_fc_ib,
-                         money_tol(r.gain_fc_ib), "realised gain differs"))
-        lots_o = sorted(zip(o.loc[(o.conid == r.conid) & (o.disp == r.disp), "acq"].dt.date,
-                            strict=True))
-        lots_i = sorted(zip(i.loc[(i.conid == r.conid) & (i.disp == r.disp), "acq"].dt.date,
-                            strict=True))
-        if set(lots_o) != set(lots_i):
+                         money_tol(r.gain_fc_ib), note or "realised gain differs",
+                         soft=from_event))
+        ours_d = sorted({str(d) for d in mine["acq"].dt.date})
+        ib_d = sorted({str(d) for d in i.loc[(i.conid == r.conid) & (i.disp == r.disp),
+                                             "acq"].dt.date})
+        if ours_d != ib_d:
             rows.append(ReconRow("A closed lots", "lot dates", scope, None, None, "info",
-                                 f"ours {sorted({d for d, in lots_o})} vs IB "
-                                 f"{sorted({d for d, in lots_i})}: IB open times can fall on "
-                                 "another calendar day (time zone) or IB used another lot "
-                                 "method. Check the discount test near 12 months."))
+                                 f"bought: ours {', '.join(ours_d)}; IB {', '.join(ib_d)}. "
+                                 "IB open times can fall on another calendar day (time zone), "
+                                 "or IB matched other lots. Check the discount test if near "
+                                 "12 months."))
     return rows
 
 
@@ -111,12 +117,15 @@ def reconcile_closed_lots(parcels: pd.DataFrame, closed: pd.DataFrame, fy: int,
         return rows
     o, i = _frames(ours, ib)
     names = dict(zip(pd.concat([o, i])["conid"], pd.concat([o, i])["symbol"], strict=True))
-    rows += _disposal_rows(o, i, names)
+    rows += _disposal_rows(o, i, names, event_ids)
+    touched = o["src"].map(lambda s: any(e in s for e in event_ids))
     for cur in sorted(set(o["cur"]) | set(i["cur"])):
         g_o, g_i = float(o.loc[o.cur == cur, "gain_fc"].sum()), float(
             i.loc[i.cur == cur, "gain_fc"].sum())
+        soft = bool(touched[o.cur == cur].any())
         rows.append(_cmp("A closed lots", "total realised gain (FC)", cur, g_o, g_i,
-                         money_tol(g_i, 0.5), "FY total differs"))
+                         money_tol(g_i, 0.5), "includes lots costed by a corporate action"
+                         if soft else "FY total differs", soft=soft))
     return rows
 
 
